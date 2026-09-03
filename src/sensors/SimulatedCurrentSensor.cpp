@@ -3,9 +3,7 @@
 #include <cmath>
 #include <cstdlib>
 
-// M_PI isn't guaranteed to exist in every compiler's <cmath> (it's a
-// historical POSIX extension, not standard C++), so we define it ourselves
-// to keep this file portable across native and ESP32 toolchains.
+// M_PI isn't guaranteed to exist across compilers, defining it myself
 constexpr float PI_F = 3.14159265358979323846f;
 
 SimulatedCurrentSensor::SimulatedCurrentSensor(const char* label, float ratedAmps, float mainsHz)
@@ -32,11 +30,11 @@ float SimulatedCurrentSensor::amplitudeFactorForScenario() const {
         case Scenario::NORMAL:
             return 1.0f;        // full rated current
         case Scenario::PHASE_LOSS:
-            return 0.02f;       // conductor open — only stray/leakage current left
+            return 0.02f;       // conductor's open, only stray current left
         case Scenario::IMBALANCE:
-            return 0.55f;       // one phase carrying noticeably less than the others
+            return 0.55f;       // carrying noticeably less than the other phases
         case Scenario::DRY_RUN:
-            return 0.35f;       // motor spinning unloaded draws well below rated current
+            return 0.35f;       // unloaded motor draws well below rated current
     }
     return 1.0f;
 }
@@ -45,21 +43,15 @@ CurrentSample SimulatedCurrentSensor::readSample() {
     uint32_t nowMs = nowMillis();
     uint32_t elapsedMs = nowMs - startMillis_;
 
-    // Convert elapsed time into "where are we in the sine wave cycle".
-    // A sine wave at mainsHz_ (e.g. 50 Hz) completes one full cycle every
-    // (1000 / mainsHz_) milliseconds. We convert elapsed milliseconds into
-    // radians so std::sin() can use it directly:
-    //   angle = 2*PI * frequency_hz * time_seconds
+    // figure out where we are in the sine cycle: angle = 2*PI*freq*time
     float timeSeconds = static_cast<float>(elapsedMs) / 1000.0f;
     float angle = 2.0f * PI_F * mainsHz_ * timeSeconds;
 
     float peakAmps = ratedAmps_ * amplitudeFactorForScenario();
     float idealValue = peakAmps * std::sin(angle);
 
-    // Add small random noise (+/- ~2% of rated current) so this doesn't
-    // look like a mathematically perfect signal. rand() isn't
-    // cryptographically anything, but for simulating sensor jitter it's
-    // perfectly fine and has zero dependencies.
+    // small amount of noise (+/- ~2% of rated) so it's not a perfectly
+    // clean signal -- real sensors are never this tidy
     float noiseAmplitude = ratedAmps_ * 0.02f;
     float noise = ((static_cast<float>(rand()) / RAND_MAX) * 2.0f - 1.0f) * noiseAmplitude;
 

@@ -1,16 +1,8 @@
-// This file only gets compiled in the `native` PlatformIO environment
-// (see platformio.ini's build_src_filter for env:native).
+// Only compiled in the native (Mac) environment -- see platformio.ini.
+// Once the ESP32 build exists this gets a sibling, Platform_esp32.cpp,
+// with the same function just calling the real millis():
 //
-// When we add env:esp32dev in Stage B, we'll add a sibling file,
-// Platform_esp32.cpp, containing just:
-//
-//     #include "Platform.h"
-//     #include <Arduino.h>
-//     uint32_t nowMillis() { return millis(); }
-//
-// and that environment's build_src_filter will pull in that file instead
-// of this one. Same declared function, two one-line-different bodies,
-// selected automatically by which environment you build.
+//   uint32_t nowMillis() { return millis(); }
 
 #include "Platform.h"
 #include <chrono>
