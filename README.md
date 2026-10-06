@@ -1,123 +1,64 @@
-# 3-Phase Motor Health Monitor
+Software system for monitoring 3-phase induction motors, focused on two common and expensive failure modes in industrial pumps: phase imbalance / single-phasing and dry-running.
 
-An embedded monitoring system for 3-phase induction motors, built around two
-failure modes that are common — and expensive — in industrial settings such
-as deep-well submersible water pumps: **phase imbalance / single-phasing**
-and **dry-running**.
+This repository contains Stage A of the project — a complete software simulation with a clean architecture. The next stage will move the same logic onto real ESP32 hardware with current sensors.
 
-> **Status: Stage A, in progress.** This project is being built in two
-> deliberate stages (see [Architecture](#architecture) below). Stage A
-> (software simulation, no hardware required) is under active development.
-> Stage B (real ESP32 + current clamp sensors) begins once hardware arrives.
-> This is intentional engineering practice — build and prove out firmware
-> logic against a simulated Hardware Abstraction Layer before hardware
-> exists, then swap in the real sensor implementation without touching the
-> business logic — not a limitation of the project.
+## Why this project
 
-## Problem Statement
+In industrial environments, especially with submersible pumps, two problems cause a lot of motor damage:
 
-In 3-phase motor-driven equipment — deep-well submersible pumps in
-particular — two failure modes account for a large share of preventable
-motor burnout:
+- **Phase imbalance / single-phasing**: One phase loses current. The motor continues running on the remaining phases, overheats, and often burns out within minutes.
+- **Dry-running**: The pump loses its water load. Current drops, but the motor keeps spinning and damages bearings and seals.
 
-- **Phase imbalance / single-phasing**: one phase conductor loses current
-  relative to the others (a blown fuse, a burned contactor point, a loose
-  terminal). The motor keeps attempting to run on the remaining phases,
-  drawing excessive current on them and overheating the windings — often
-  destroying the motor within minutes if not caught.
-- **Dry-running**: a submersible pump loses its water load (well runs dry,
-  intake is blocked) and spins with little resistance. Current drops well
-  below the rated load current, but the pump keeps running — leading to
-  bearing and seal damage from lack of the cooling/lubrication the pumped
-  fluid normally provides.
+Both conditions have clear current signatures. This project detects them in software.
 
-Both conditions have a distinct, detectable current signature. This project
-implements that detection logic in firmware, with the eventual goal of
-publishing live readings and fault alerts over MQTT to a dashboard.
+I previously worked as a technician in industrial settings. That experience made it clear how important reliable detection is, and how often software systems fail when they don’t account for real-world conditions. This project is built with those lessons in mind.
 
 ## Architecture
 
-```
-                    ┌─────────────────────────┐
-                    │   Fault Detection Logic   │   <- doesn't know or care
-                    │   (imbalance / phase-loss │      where readings come
-                    │    / dry-run thresholds)  │      from
-                    └────────────┬──────────────┘
-                                 │
-                    ┌────────────▼──────────────┐
-                    │      ICurrentSensor        │   <- the HAL boundary
-                    │        (interface)         │
-                    └──────┬──────────────┬───────┘
-                            │              │
-              ┌─────────────▼───┐   ┌──────▼─────────────┐
-              │ SimulatedCurrent │   │  SCT013Current      │
-              │     Sensor       │   │     Sensor          │
-              │   (Stage A)      │   │    (Stage B)        │
-              │  generates a     │   │  reads a real        │
-              │  realistic sine  │   │  SCT-013 clamp via   │
-              │  wave in software│   │  the ESP32's ADC     │
-              └──────────────────┘   └──────────────────────┘
-```
+The system is built around a simple Hardware Abstraction Layer:
 
-Everything above the `ICurrentSensor` line — RMS calculation, fault
-detection, MQTT publishing — is written once and never changes between
-stages. Only the box below the line is swapped.
+Fault Detection Logic
+          │
+          ▼
+ICurrentSensor (interface)
+          │
+     ┌────┴────┐
+     │         │
+Simulated   Real sensor
+(Stage A)   (Stage B)
 
-| | Stage A (now) | Stage B (once hardware arrives) |
-|---|---|---|
-| Sensor input | `SimulatedCurrentSensor`: software-generated sine wave with selectable fault scenarios | `SCT013CurrentSensor`: real current clamp readings via ESP32 ADC |
-| Runs on | Your dev machine, via PlatformIO's `native` platform | Physical ESP32 |
-| Purpose | Prove out fault-detection logic, MQTT layer, and dashboard end-to-end with zero hardware dependency | Validate the same logic against real electrical noise and real motor behavior |
+Everything above the interface (RMS calculation, fault detection, future MQTT publishing) stays the same. Only the sensor implementation changes between stages.
 
-## Current Progress
+This approach lets me develop and test the core logic properly before hardware is available.
 
-- [x] `ICurrentSensor` hardware abstraction interface
-- [x] `SimulatedCurrentSensor` — sine wave generator with `NORMAL` /
-      `PHASE_LOSS` / `IMBALANCE` / `DRY_RUN` scenarios
-- [x] Single simulated phase reading, verified end-to-end
-- [ ] RMS current calculation
-- [ ] Multi-phase fault detection logic (imbalance, single-phasing, dry-run)
-- [ ] MQTT publishing (readings + fault states)
-- [ ] Node-RED / web dashboard
-- [ ] Stage B: real SCT-013 + ESP32 implementation
+## Current Status (Stage A)
 
-## Setup & Usage
+Completed:
+- Hardware abstraction interface (`ICurrentSensor`)
+- Simulated current sensor with realistic scenarios (normal, phase loss, imbalance, dry-run)
+- Single-phase reading verified end-to-end
+- Basic project structure with PlatformIO
 
-Requires [PlatformIO](https://platformio.org/) (`pip install platformio` or
-`brew install platformio`).
+In progress / next:
+- Full RMS current calculation
+- Multi-phase fault detection logic
+- MQTT publishing
+- Simple dashboard
+- Stage B: real SCT-013 sensors on ESP32
 
-```bash
-git clone <your-repo-url>
+## How to run the simulation
+
+Requires PlatformIO.
+
+bash
+git clone https://github.com/Alirezagholizadehvazvani/motor-health-monitor.git
 cd motor-health-monitor
-pio run -e native              # compiles for your host machine, no hardware needed
-.pio/build/native/program       # runs the simulation
-```
+pio run -e native
+.pio/build/native/program
 
-## Demo
+Design notes
+I deliberately started with a pure software simulation. The goal was to get the detection logic and architecture right first, without depending on hardware availability. This is the same approach used in many real embedded teams — software should not sit idle waiting for boards.
+The next phase will replace the simulated sensor with real current clamp readings while keeping the rest of the code unchanged.
 
-_placeholder — screenshot / GIF of the live dashboard will go here once the
-MQTT + dashboard stage is complete._
-
-## Why Simulate First?
-
-This project deliberately separates *firmware logic correctness* from
-*hardware availability*. The `ICurrentSensor` interface means the fault
-detection algorithms, MQTT publishing, and dashboard can all be built,
-tested, and demonstrated on a laptop — and the exact same logic will run
-unmodified on the real ESP32 once hardware is available. This mirrors how
-real embedded teams work: hardware is often the long pole, and software
-shouldn't sit idle waiting for it.
-
-## Limitations & Future Work
-
-- Currently simulation-only (Stage A); real hardware integration (Stage B)
-  is planned as ESP32 + SCT-013 sensors become available
-- No persistence/historical trending yet
-- Future: ML-based predictive maintenance (trending toward failure before
-  hard thresholds are crossed)
-- Future: industrial Modbus/RS-485 integration for interfacing with existing
-  plant SCADA/PLC systems
-
-## License
-
-MIT — see [LICENSE](LICENSE).
+License
+MIT
