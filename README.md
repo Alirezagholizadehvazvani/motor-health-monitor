@@ -17,17 +17,12 @@ I previously worked as a technician in industrial settings. That experience made
 
 The system is built around a simple Hardware Abstraction Layer:
 
-Fault Detection Logic
-          │
-          ▼
-ICurrentSensor (interface)
-          │
-     ┌────┴────┐
-     │         │
-Simulated   Real sensor
-(Stage A)   (Stage B)
+- **Fault Detection Logic** (RMS calculation, imbalance & dry-run detection)
+- **ICurrentSensor** interface
+  - Stage A → `SimulatedCurrentSensor`
+  - Stage B → Real SCT-013 sensor on ESP32
 
-Everything above the interface (RMS calculation, fault detection, future MQTT publishing) stays the same. Only the sensor implementation changes between stages.
+Everything above the interface stays the same between stages. Only the sensor implementation changes.
 
 This approach lets me develop and test the core logic properly before hardware is available.
 
