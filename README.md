@@ -1,3 +1,5 @@
+# 3-Phase Motor Health Monitor
+
 Software system for monitoring 3-phase induction motors, focused on two common and expensive failure modes in industrial pumps: phase imbalance / single-phasing and dry-running.
 
 This repository contains Stage A of the project — a complete software simulation with a clean architecture. The next stage will move the same logic onto real ESP32 hardware with current sensors.
@@ -17,24 +19,31 @@ I previously worked as a technician in industrial settings. That experience made
 
 The system is built around a simple Hardware Abstraction Layer:
 
-- **Fault Detection Logic** (RMS calculation, imbalance & dry-run detection)
-- **ICurrentSensor** interface
-  - Stage A → `SimulatedCurrentSensor`
-  - Stage B → Real SCT-013 sensor on ESP32
+```text
+Fault Detection Logic
+        │
+        ▼
+  ICurrentSensor (interface)
+        │
+   ┌────┴────┐
+   │         │
+Simulated   Real sensor
+(Stage A)   (Stage B)
+```
 
-Everything above the interface stays the same between stages. Only the sensor implementation changes.
+Everything above the interface (RMS calculation, fault detection, future MQTT publishing) stays the same. Only the sensor implementation changes between stages.
 
 This approach lets me develop and test the core logic properly before hardware is available.
 
 ## Current Status (Stage A)
 
-Completed:
+**Completed:**
 - Hardware abstraction interface (`ICurrentSensor`)
 - Simulated current sensor with realistic scenarios (normal, phase loss, imbalance, dry-run)
 - Single-phase reading verified end-to-end
 - Basic project structure with PlatformIO
 
-In progress / next:
+**In progress / next:**
 - Full RMS current calculation
 - Multi-phase fault detection logic
 - MQTT publishing
@@ -45,15 +54,20 @@ In progress / next:
 
 Requires PlatformIO.
 
-bash
+```bash
 git clone https://github.com/Alirezagholizadehvazvani/motor-health-monitor.git
 cd motor-health-monitor
 pio run -e native
 .pio/build/native/program
+```
 
-Design notes
+## Design notes
+
 I deliberately started with a pure software simulation. The goal was to get the detection logic and architecture right first, without depending on hardware availability. This is the same approach used in many real embedded teams — software should not sit idle waiting for boards.
+
 The next phase will replace the simulated sensor with real current clamp readings while keeping the rest of the code unchanged.
 
-License
+## License
+
 MIT
+```
